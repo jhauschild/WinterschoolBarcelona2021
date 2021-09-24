@@ -4,7 +4,7 @@
 import numpy as np
 from a_mps import split_truncate_theta
 import scipy.sparse
-import scipy.sparse.linalg.eigen.arpack as arp
+from scipy.sparse.linalg.eigen import arpack
 
 
 class SimpleHeff2(scipy.sparse.linalg.LinearOperator):
@@ -104,16 +104,16 @@ class SimpleDMRGEngine:
             self.update_bond(i)
         # sweep from right to left
         for i in range(self.psi.nbonds - 1, 0, -1):
-            self.update_bond(i)
+            E0 = self.update_bond(i)
+        return E0
 
     def update_bond(self, i):
         j = (i + 1) % self.psi.L
         # get effective Hamiltonian
         Heff = SimpleHeff2(self.LPs[i], self.RPs[j], self.H_mpo[i], self.H_mpo[j])
         # Diagonalize Heff, find ground state `theta`
-        theta0 = np.reshape(self.psi.get_theta2(i), [Heff.shape[0]])  # initial guess
-        e, v = arp.eigsh(Heff, k=1, which='SA', return_eigenvectors=True, v0=theta0)
-        theta = np.reshape(v[:, 0], Heff.theta_shape)
+        theta_guess = self.psi.get_theta2(i)
+        E0, theta = self.diag(Heff, theta_guess)
         # split and truncate
         Ai, Sj, Bj = split_truncate_theta(theta, self.chi_max, self.eps)
         # put back into MPS
@@ -123,6 +123,13 @@ class SimpleDMRGEngine:
         self.psi.Bs[j] = Bj  # vC j vR
         self.update_LP(i, Ai)
         self.update_RP(j, Bj)
+        return E0
+
+    def diag(self, Heff, guess):
+        """Diagonalize the effective hamiltonian with an initial guess."""
+        guess = np.reshape(guess, [Heff.shape[1]])
+        E, V = arpack.eigsh(Heff, k=1, which='SA', return_eigenvectors=True, v0=guess)
+        return E, np.reshape(V[:, 0], Heff.theta_shape)
 
     def update_RP(self, i, B):
         """Calculate RP environment right of site `i-1`.

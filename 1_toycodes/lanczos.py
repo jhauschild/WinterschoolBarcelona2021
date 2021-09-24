@@ -4,8 +4,9 @@ from scipy.sparse.linalg import expm
 import numpy as np
 import warnings
 
+default_k = 20
 
-def lanczos_ground_state(H, psi0, k=10):
+def lanczos_ground_state(H, psi0, k=None):
     """Use lanczos to calculated the ground state of a hermitian H.
 
     If you don't know Lanczos, you can view this as a black box algorithm.
@@ -20,7 +21,7 @@ def lanczos_ground_state(H, psi0, k=10):
         warnings.warn("poorly conditioned lanczos. Maybe a non-hermitian H?")
     return E[0], result
 
-def lanczos_expm_multiply(H, psi0, dt, k=20):
+def lanczos_expm_multiply(H, psi0, dt, k=None):
     """Use lanczos to calculated ``expm(-i H dt)|psi0>`` for sufficiently small dt and hermitian H.
 
     If you don't know Lanczos, you can view this as a black box algorithm.
@@ -39,6 +40,8 @@ def lanczos_expm_multiply(H, psi0, dt, k=20):
 
 def lanczos_iterations(H, psi0, k):
     """Perform `k` Lanczos iterations building tridiagonal matrix T and ONB of the Krylov space."""
+    if k is None:
+        k = default_k
     if psi0.ndim != 1:
         raise ValueError("psi0 should be a vector")
     if H.shape[1] != psi0.shape[0]:
