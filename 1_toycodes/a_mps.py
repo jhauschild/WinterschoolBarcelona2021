@@ -22,9 +22,9 @@ class SimpleMPS:
     Attributes
     ----------
     Bs : list of np.Array[ndim=3]
-        The 'matrices' in right-canonical form, one for each physical site
+        The 'matrices', in right-canonical form, one for each physical site
         (within the unit-cell for an infinite MPS).
-        Each `B[i]` has legs (virtual left, physical, virtual right), in short ``vL i vR``
+        Each `B[i]` has legs (virtual left, physical, virtual right), in short ``vL i vR``.
     Ss : list of np.Array[ndim=1]
         The Schmidt values at each of the bonds, ``Ss[i]`` is left of ``Bs[i]``.
     bc : 'infinite', 'finite'
@@ -32,7 +32,7 @@ class SimpleMPS:
     L : int
         Number of sites (in the unit-cell for an infinite MPS).
     nbonds : int
-        Number of (non-trivial) bonds: L-1 for 'finite' boundary conditions
+        Number of (non-trivial) bonds: L-1 for 'finite' boundary conditions, L for 'infinite'.
     """
     def __init__(self, Bs, Ss, bc='finite'):
         assert bc in ['finite', 'infinite']
@@ -50,7 +50,7 @@ class SimpleMPS:
 
         The returned array has legs ``vL, i, vR`` (as one of the Bs).
         """
-        return np.tensordot(np.diag(self.Ss[i]), self.Bs[i], [1, 0])  # vL [vL'], [vL] i vR
+        return np.tensordot(np.diag(self.Ss[i]), self.Bs[i], (1, 0))  # vL [vL'], [vL] i vR
 
     def get_theta2(self, i):
         """Calculate effective two-site wave function on sites i,j=(i+1) in mixed canonical form.
@@ -58,7 +58,7 @@ class SimpleMPS:
         The returned array has legs ``vL, i, j, vR``.
         """
         j = (i + 1) % self.L
-        return np.tensordot(self.get_theta1(i), self.Bs[j], [2, 0])  # vL i [vR], [vL] j vR
+        return np.tensordot(self.get_theta1(i), self.Bs[j], (2, 0))  # vL i [vR], [vL] j vR
 
     def get_chi(self):
         """Return bond dimensions."""
@@ -69,8 +69,8 @@ class SimpleMPS:
         result = []
         for i in range(self.L):
             theta = self.get_theta1(i)  # vL i vR
-            op_theta = np.tensordot(op, theta, axes=[1, 1])  # i [i*], vL [i] vR
-            result.append(np.tensordot(theta.conj(), op_theta, [[0, 1, 2], [1, 0, 2]]))
+            op_theta = np.tensordot(op, theta, axes=(1, 1))  # i [i*], vL [i] vR
+            result.append(np.tensordot(theta.conj(), op_theta, ([0, 1, 2], [1, 0, 2])))
             # [vL*] [i*] [vR*], [i] [vL] [vR]
         return np.real_if_close(result)
 
@@ -79,9 +79,9 @@ class SimpleMPS:
         result = []
         for i in range(self.nbonds):
             theta = self.get_theta2(i)  # vL i j vR
-            op_theta = np.tensordot(op[i], theta, axes=[[2, 3], [1, 2]])
+            op_theta = np.tensordot(op[i], theta, axes=([2, 3], [1, 2]))
             # i j [i*] [j*], vL [i] [j] vR
-            result.append(np.tensordot(theta.conj(), op_theta, [[0, 1, 2, 3], [2, 0, 1, 3]]))
+            result.append(np.tensordot(theta.conj(), op_theta, ([0, 1, 2, 3], [2, 0, 1, 3])))
             # [vL*] [i*] [j*] [vR*], [i] [j] [vL] [vR]
         return np.real_if_close(result)
 
@@ -103,12 +103,12 @@ class SimpleMPS:
         assert self.bc == 'infinite'  # works only in the infinite case
         B = self.Bs[0]  # vL i vR
         chi = B.shape[0]
-        T = np.tensordot(B, np.conj(B), axes=[1, 1])  # vL [i] vR, vL* [i*] vR*
+        T = np.tensordot(B, np.conj(B), axes=(1, 1))  # vL [i] vR, vL* [i*] vR*
         T = np.transpose(T, [0, 2, 1, 3])  # vL vL* vR vR*
         for i in range(1, self.L):
             B = self.Bs[i]
-            T = np.tensordot(T, B, axes=[2, 0])  # vL vL* [vR] vR*, [vL] i vR
-            T = np.tensordot(T, np.conj(B), axes=[[2, 3], [0, 1]])
+            T = np.tensordot(T, B, axes=(2, 0))  # vL vL* [vR] vR*, [vL] i vR
+            T = np.tensordot(T, np.conj(B), axes=([2, 3], [0, 1]))
             # vL vL* [vR*] [i] vR, [vL*] [i*] vR*
         T = np.reshape(T, (chi**2, chi**2))
         # Obtain the 2nd largest eigenvalue
@@ -123,7 +123,7 @@ def init_FM_MPS(L, d, bc='finite'):
     S = np.ones([1], dtype=float)
     Bs = [B.copy() for i in range(L)]
     Ss = [S.copy() for i in range(L)]
-    return MPS(Bs, Ss)
+    return SimpleMPS(Bs, Ss, bc=bc)
 
 
 def split_truncate_theta(theta, chi_max, eps):

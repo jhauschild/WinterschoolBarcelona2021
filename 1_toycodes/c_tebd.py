@@ -43,13 +43,13 @@ def update_bond(psi, i, U_bond, chi_max, eps):
     # split and truncate
     Ai, Sj, Bj = split_truncate_theta(Utheta, chi_max, eps)
     # put back into MPS
-    Gi = np.tensordot(np.diag(psi.Ss[i]**(-1)), Ai, axes=[1, 0])  # vL [vL*], [vL] i vC
-    psi.Bs[i] = np.tensordot(Gi, np.diag(Sj), axes=[2, 0])  # vL i [vC], [vC] vC
+    Gi = np.tensordot(np.diag(psi.Ss[i]**(-1)), Ai, axes=(1, 0))  # vL [vL*], [vL] i vC
+    psi.Bs[i] = np.tensordot(Gi, np.diag(Sj), axes=(2, 0))  # vL i [vC], [vC] vC
     psi.Ss[j] = Sj  # vC
     psi.Bs[j] = Bj  # vC j vR
 
 
-def example_TEBD_gs_tf_ising_finite(L, g):
+def example_TEBD_gs_tf_ising_finite(L, g, chi_max=30):
     print("finite TEBD, imaginary time evolution, transverse field Ising")
     print("L={L:d}, g={g:.2f}".format(L=L, g=g))
     import a_mps
@@ -58,7 +58,7 @@ def example_TEBD_gs_tf_ising_finite(L, g):
     psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
     for dt in [0.1, 0.01, 0.001, 1.e-4, 1.e-5]:
         U_bonds = calc_U_bonds(M.H_bonds, dt)
-        run_TEBD(psi, U_bonds, N_steps=500, chi_max=30, eps=1.e-10)
+        run_TEBD(psi, U_bonds, N_steps=500, chi_max=chi_max, eps=1.e-10)
         E = np.sum(psi.bond_expectation_value(M.H_bonds))
         print("dt = {dt:.5f}: E = {E:.13f}".format(dt=dt, E=E))
     print("final bond dimensions: ", psi.get_chi())
@@ -74,7 +74,7 @@ def example_TEBD_gs_tf_ising_finite(L, g):
     return E, psi, M
 
 
-def example_TEBD_gs_tf_ising_infinite(g):
+def example_TEBD_gs_tf_ising_infinite(g, chi_max=30):
     print("infinite TEBD, imaginary time evolution, transverse field Ising")
     print("g={g:.2f}".format(g=g))
     import a_mps
@@ -83,7 +83,7 @@ def example_TEBD_gs_tf_ising_infinite(g):
     psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
     for dt in [0.1, 0.01, 0.001, 1.e-4, 1.e-5]:
         U_bonds = calc_U_bonds(M.H_bonds, dt)
-        run_TEBD(psi, U_bonds, N_steps=500, chi_max=30, eps=1.e-10)
+        run_TEBD(psi, U_bonds, N_steps=500, chi_max=chi_max, eps=1.e-10)
         E = np.mean(psi.bond_expectation_value(M.H_bonds))
         print("dt = {dt:.5f}: E (per site) = {E:.13f}".format(dt=dt, E=E))
     print("final bond dimensions: ", psi.get_chi())
@@ -100,7 +100,7 @@ def example_TEBD_gs_tf_ising_infinite(g):
     return E, psi, M
 
 
-def example_TEBD_tf_ising_lightcone(L, g, tmax, dt):
+def example_TEBD_tf_ising_lightcone(L, g, tmax, dt, chi_max=50):
     print("finite TEBD, real time evolution, transverse field Ising")
     print("L={L:d}, g={g:.2f}, tmax={tmax:.2f}, dt={dt:.3f}".format(L=L, g=g, tmax=tmax, dt=dt))
     # find ground state with TEBD or DMRG
@@ -109,7 +109,7 @@ def example_TEBD_tf_ising_lightcone(L, g, tmax, dt):
     E, psi, M = example_DMRG_tf_ising_finite(L, g)
     i0 = L // 2
     # apply sigmaz on site i0
-    SzB = np.tensordot(M.sigmaz, psi.Bs[i0], axes=[1, 1])  # i [i*], vL [i] vR
+    SzB = np.tensordot(M.sigmaz, psi.Bs[i0], axes=(1, 1))  # i [i*], vL [i] vR
     psi.Bs[i0] = np.transpose(SzB, [1, 0, 2])  # vL i vR
     U_bonds = calc_U_bonds(M.H_bonds, 1.j * dt)  # (imaginary dt -> realtime evolution)
     S = [psi.entanglement_entropy()]
@@ -117,7 +117,7 @@ def example_TEBD_tf_ising_lightcone(L, g, tmax, dt):
     for n in range(Nsteps):
         if abs((n * dt + 0.1) % 0.2 - 0.1) < 1.e-10:
             print("t = {t:.2f}, chi =".format(t=n * dt), psi.get_chi())
-        run_TEBD(psi, U_bonds, 1, chi_max=50, eps=1.e-10)
+        run_TEBD(psi, U_bonds, 1, chi_max=chi_max, eps=1.e-10)
         S.append(psi.entanglement_entropy())
     import matplotlib.pyplot as plt
     plt.figure()
@@ -130,12 +130,13 @@ def example_TEBD_tf_ising_lightcone(L, g, tmax, dt):
     plt.ylabel('time $t/J$')
     plt.ylim(0., tmax)
     plt.colorbar().set_label('entropy $S$')
-    filename = 'c_tebd_lightcone_{g:.2f}.pdf'.format(g=g)
+    filename = 'c_tebd_lightcone_{g:.2f}_chi_{chi_max:d}.pdf'.format(g=g, chi_max=chi_max)
     plt.savefig(filename)
     print("saved " + filename)
 
 
 if __name__ == "__main__":
+    # this code is not called if you import this module from another file
     example_TEBD_gs_tf_ising_finite(L=10, g=1.)
     print("-" * 100)
     example_TEBD_gs_tf_ising_infinite(g=1.5)

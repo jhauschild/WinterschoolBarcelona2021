@@ -7,7 +7,7 @@ import scipy.sparse
 import scipy.sparse.linalg.eigen.arpack as arp
 
 
-class SimpleHeff(scipy.sparse.linalg.LinearOperator):
+class SimpleHeff2(scipy.sparse.linalg.LinearOperator):
     """Class for the effective Hamiltonian.
 
     To be diagonalized in `SimpleDMRGEnginge.update_bond`. Looks like this::
@@ -15,7 +15,7 @@ class SimpleHeff(scipy.sparse.linalg.LinearOperator):
         .--vL*           vR*--.
         |       i*    j*      |
         |       |     |       |
-        (LP)---(W1)--(W2)----(RP)
+       (LP)----(W1)--(W2)----(RP)
         |       |     |       |
         |       i     j       |
         .--vL             vR--.
@@ -48,6 +48,16 @@ class SimpleHeff(scipy.sparse.linalg.LinearOperator):
 class SimpleDMRGEngine:
     """DMRG algorithm, implemented as class holding the necessary data.
 
+    DMRG sweeps left-right-left through the system, moving the orthogonality center along.
+    Here, we still just save right-canonical `B` tensors in `psi`, which requires taking inverses
+    of the Schmidt values - this is bad practice, but it keeps two things simpler:
+    - We don't need book keeping in the MPS class to keep track of the canonical form, and all the
+    MPS methods (expectation values etc) can just *assume* that the MPS is in right-canonical form.
+    - The generalization to the infinite case is straight forward.
+    Note, however, that we only use the A and B tensors directly from the SVD (without taking
+    inverses) to update the environments - the effective Hamiltonian does thus not suffer
+    from taking the inverses for saving the tensors in B.
+
     Parameters
     ----------
     psi, model, chi_max, eps:
@@ -58,14 +68,14 @@ class SimpleDMRGEngine:
     psi : SimpleMPS
         The current ground-state (approximation).
     model :
-        The model of which the groundstate is to be calculated.
+        The model of which the groundstate is to be calculated. Needs to have an `H_mpo`.
     chi_max, eps:
         Truncation parameters, see :func:`a_mps.split_truncate_theta`.
     LPs, RPs : list of np.Array[ndim=3]
         Left and right parts ("environments") of the effective Hamiltonian.
         ``LPs[i]`` is the contraction of all parts left of site `i` in the network ``<psi|H|psi>``,
         and similar ``RPs[i]`` for all parts right of site `i`.
-        Each ``LPs[i]`` has legs ``vL wL* vL*``, ``RPS[i]`` has legs ``vR* wR* vR``
+        Each ``LPs[i]`` has legs ``vL wL* vL*``, ``RPs[i]`` has legs ``vR* wR* vR``
     """
     def __init__(self, psi, model, chi_max, eps):
         assert psi.L == model.L and psi.bc == model.bc  # ensure compatibility
@@ -86,7 +96,7 @@ class SimpleDMRGEngine:
         self.RPs[-1] = RP
         # initialize necessary RPs
         for i in range(psi.L - 1, 1, -1):
-            self.update_RP(i)
+            self.update_RP(i, psi.Bs[i])
 
     def sweep(self):
         # sweep from left to right
@@ -99,7 +109,7 @@ class SimpleDMRGEngine:
     def update_bond(self, i):
         j = (i + 1) % self.psi.L
         # get effective Hamiltonian
-        Heff = SimpleHeff(self.LPs[i], self.RPs[j], self.H_mpo[i], self.H_mpo[j])
+        Heff = SimpleHeff2(self.LPs[i], self.RPs[j], self.H_mpo[i], self.H_mpo[j])
         # Diagonalize Heff, find ground state `theta`
         theta0 = np.reshape(self.psi.get_theta2(i), [Heff.shape[0]])  # initial guess
         e, v = arp.eigsh(Heff, k=1, which='SA', return_eigenvectors=True, v0=theta0)
@@ -107,48 +117,50 @@ class SimpleDMRGEngine:
         # split and truncate
         Ai, Sj, Bj = split_truncate_theta(theta, self.chi_max, self.eps)
         # put back into MPS
-        Gi = np.tensordot(np.diag(self.psi.Ss[i]**(-1)), Ai, axes=[1, 0])  # vL [vL*], [vL] i vC
-        self.psi.Bs[i] = np.tensordot(Gi, np.diag(Sj), axes=[2, 0])  # vL i [vC], [vC*] vC
+        Gi = np.tensordot(np.diag(self.psi.Ss[i]**(-1)), Ai, axes=(1, 0))  # vL [vL*], [vL] i vC
+        self.psi.Bs[i] = np.tensordot(Gi, np.diag(Sj), axes=(2, 0))  # vL i [vC], [vC*] vC
         self.psi.Ss[j] = Sj  # vC
         self.psi.Bs[j] = Bj  # vC j vR
-        self.update_LP(i)
-        self.update_RP(j)
+        self.update_LP(i, Ai)
+        self.update_RP(j, Bj)
 
-    def update_RP(self, i):
-        """Calculate RP right of site `i-1` from RP right of site `i`."""
+    def update_RP(self, i, B):
+        """Calculate RP environment right of site `i-1`.
+
+        Uses RP right of `i` and the given, right-canonical `B` on site `i`."""
         j = (i - 1) % self.psi.L
         RP = self.RPs[i]  # vR* wR* vR
-        B = self.psi.Bs[i]  # vL i vR
+        # B has legs     vL i vR
         Bc = B.conj()  # vL* i* vR*
         W = self.H_mpo[i]  # wL wR i i*
-        RP = np.tensordot(B, RP, axes=[2, 0])  # vL i [vR], [vR*] wR* vR
-        RP = np.tensordot(RP, W, axes=[[1, 2], [3, 1]])  # vL [i] [wR*] vR, wL [wR] i [i*]
-        RP = np.tensordot(RP, Bc, axes=[[1, 3], [2, 1]])  # vL [vR] wL [i], vL* [i*] [vR*]
+        RP = np.tensordot(B, RP, axes=(2, 0))  # vL i [vR], [vR*] wR* vR
+        RP = np.tensordot(RP, W, axes=([1, 2], [3, 1]))  # vL [i] [wR*] vR, wL [wR] i [i*]
+        RP = np.tensordot(RP, Bc, axes=([1, 3], [2, 1]))  # vL [vR] wL [i], vL* [i*] [vR*]
         self.RPs[j] = RP  # vL wL vL* (== vR* wR* vR on site i-1)
 
-    def update_LP(self, i):
-        """Calculate LP left of site `i+1` from LP left of site `i`."""
+    def update_LP(self, i, A):
+        """Calculate LP environment left of site `i+1`.
+
+        Uses the LP left of site `i` and the given, left-canonical `A` on site `i`."""
         j = (i + 1) % self.psi.L
         LP = self.LPs[i]  # vL wL vL*
-        B = self.psi.Bs[i]  # vL i vR
-        G = np.tensordot(np.diag(self.psi.Ss[i]), B, axes=[1, 0])  # vL [vL*], [vL] i vR
-        A = np.tensordot(G, np.diag(self.psi.Ss[j]**-1), axes=[2, 0])  # vL i [vR], [vR*] vR
+        # A has legs    vL i vR
         Ac = A.conj()  # vL* i* vR*
         W = self.H_mpo[i]  # wL wR i i*
-        LP = np.tensordot(LP, A, axes=[2, 0])  # vL wL* [vL*], [vL] i vR
-        LP = np.tensordot(W, LP, axes=[[0, 3], [1, 2]])  # [wL] wR i [i*], vL [wL*] [i] vR
-        LP = np.tensordot(Ac, LP, axes=[[0, 1], [2, 1]])  # [vL*] [i*] vR*, wR [i] [vL] vR
+        LP = np.tensordot(LP, A, axes=(2, 0))  # vL wL* [vL*], [vL] i vR
+        LP = np.tensordot(W, LP, axes=([0, 3], [1, 2]))  # [wL] wR i [i*], vL [wL*] [i] vR
+        LP = np.tensordot(Ac, LP, axes=([0, 1], [2, 1]))  # [vL*] [i*] vR*, wR [i] [vL] vR
         self.LPs[j] = LP  # vR* wR vR (== vL wL* vL* on site i+1)
 
 
-def example_DMRG_tf_ising_finite(L, g):
+def example_DMRG_tf_ising_finite(L, g, chi_max=20):
     print("finite DMRG, transverse field Ising")
     print("L={L:d}, g={g:.2f}".format(L=L, g=g))
     import a_mps
     import b_model
     M = b_model.TFIModel(L=L, J=1., g=g, bc='finite')
     psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
-    eng = SimpleDMRGEngine(psi, M, chi_max=30, eps=1.e-10)
+    eng = SimpleDMRGEngine(psi, M, chi_max=chi_max, eps=1.e-10)
     for i in range(10):
         eng.sweep()
         E = np.sum(psi.bond_expectation_value(M.H_bonds))
@@ -166,14 +178,14 @@ def example_DMRG_tf_ising_finite(L, g):
     return E, psi, M
 
 
-def example_DMRG_tf_ising_infinite(g):
+def example_DMRG_tf_ising_infinite(g, chi_max=30):
     print("infinite DMRG, transverse field Ising")
     print("g={g:.2f}".format(g=g))
     import a_mps
     import b_model
     M = b_model.TFIModel(L=2, J=1., g=g, bc='infinite')
     psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
-    eng = SimpleDMRGEngine(psi, M, chi_max=20, eps=1.e-14)
+    eng = SimpleDMRGEngine(psi, M, chi_max=chi_max, eps=1.e-14)
     for i in range(20):
         eng.sweep()
         E = np.mean(psi.bond_expectation_value(M.H_bonds))
@@ -193,6 +205,7 @@ def example_DMRG_tf_ising_infinite(g):
 
 
 if __name__ == "__main__":
+    # this code is not called if you import this module from another file
     example_DMRG_tf_ising_finite(L=10, g=1.)
     print("-" * 100)
     example_DMRG_tf_ising_infinite(g=1.5)
