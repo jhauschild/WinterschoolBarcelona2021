@@ -32,10 +32,11 @@ class SimpleHeff2(scipy.sparse.linalg.LinearOperator):
         self.dtype = W1.dtype
 
     def _matvec(self, theta):
-        """Calculate |theta'> = H_eff |theta>.
+        """Calculate the matrix-vecotr product |theta'> = H_eff |theta>.
 
         This function is used by :func:scipy.sparse.linalg.eigen.arpack.eigsh` to diagonalize
-        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix."""
+        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix.
+        """
         x = np.reshape(theta, self.theta_shape)  # vL i j vR
         x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] i j vR
         x = np.tensordot(x, self.W1, axes=([1, 2], [0, 3]))  # vL [wL*] [i] j vR, [wL] wC i [i*]
@@ -55,8 +56,8 @@ class SimpleDMRGEngine:
     MPS methods (expectation values etc) can just *assume* that the MPS is in right-canonical form.
     - The generalization to the infinite case is straight forward.
     Note, however, that we only use the A and B tensors directly from the SVD (without taking
-    inverses) to update the environments - the effective Hamiltonian does thus not suffer
-    from taking the inverses for saving the tensors in B.
+    inverses) to update the environments. The effective Hamiltonian does thus not suffer
+    from taking the inverses of Schmidt values.
 
     Parameters
     ----------
@@ -165,16 +166,16 @@ def example_DMRG_tf_ising_finite(L, g, chi_max=20):
     print("L={L:d}, g={g:.2f}".format(L=L, g=g))
     import a_mps
     import b_model
-    M = b_model.TFIModel(L=L, J=1., g=g, bc='finite')
-    psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
-    eng = SimpleDMRGEngine(psi, M, chi_max=chi_max, eps=1.e-10)
+    model = b_model.TFIModel(L=L, J=1., g=g, bc='finite')
+    psi = a_mps.init_FM_MPS(model.L, model.d, model.bc)
+    eng = SimpleDMRGEngine(psi, model, chi_max=chi_max, eps=1.e-10)
     for i in range(10):
         eng.sweep()
-        E = np.sum(psi.bond_expectation_value(M.H_bonds))
+        E = np.sum(psi.bond_expectation_value(model.H_bonds))
         print("sweep {i:2d}: E = {E:.13f}".format(i=i + 1, E=E))
     print("final bond dimensions: ", psi.get_chi())
-    mag_x = np.sum(psi.site_expectation_value(M.sigmax))
-    mag_z = np.sum(psi.site_expectation_value(M.sigmaz))
+    mag_x = np.sum(psi.site_expectation_value(model.sigmax))
+    mag_z = np.sum(psi.site_expectation_value(model.sigmaz))
     print("magnetization in X = {mag_x:.5f}".format(mag_x=mag_x))
     print("magnetization in Z = {mag_z:.5f}".format(mag_z=mag_z))
     if L < 20:  # compare to exact result
@@ -182,7 +183,7 @@ def example_DMRG_tf_ising_finite(L, g, chi_max=20):
         E_exact = finite_gs_energy(L, 1., g)
         print("Exact diagonalization: E = {E:.13f}".format(E=E_exact))
         print("relative error: ", abs((E - E_exact) / E_exact))
-    return E, psi, M
+    return E, psi, model
 
 
 def example_DMRG_tf_ising_infinite(g, chi_max=30):
@@ -190,16 +191,16 @@ def example_DMRG_tf_ising_infinite(g, chi_max=30):
     print("g={g:.2f}".format(g=g))
     import a_mps
     import b_model
-    M = b_model.TFIModel(L=2, J=1., g=g, bc='infinite')
-    psi = a_mps.init_FM_MPS(M.L, M.d, M.bc)
-    eng = SimpleDMRGEngine(psi, M, chi_max=chi_max, eps=1.e-14)
+    model = b_model.TFIModel(L=2, J=1., g=g, bc='infinite')
+    psi = a_mps.init_FM_MPS(model.L, model.d, model.bc)
+    eng = SimpleDMRGEngine(psi, model, chi_max=chi_max, eps=1.e-14)
     for i in range(20):
         eng.sweep()
-        E = np.mean(psi.bond_expectation_value(M.H_bonds))
+        E = np.mean(psi.bond_expectation_value(model.H_bonds))
         print("sweep {i:2d}: E (per site) = {E:.13f}".format(i=i + 1, E=E))
     print("final bond dimensions: ", psi.get_chi())
-    mag_x = np.mean(psi.site_expectation_value(M.sigmax))
-    mag_z = np.mean(psi.site_expectation_value(M.sigmaz))
+    mag_x = np.mean(psi.site_expectation_value(model.sigmax))
+    mag_z = np.mean(psi.site_expectation_value(model.sigmaz))
     print("<sigma_x> = {mag_x:.5f}".format(mag_x=mag_x))
     print("<sigma_z> = {mag_z:.5f}".format(mag_z=mag_z))
     print("correlation length:", psi.correlation_length())
@@ -208,7 +209,7 @@ def example_DMRG_tf_ising_infinite(g, chi_max=30):
     E_exact = infinite_gs_energy(1., g)
     print("Analytic result: E (per site) = {E:.13f}".format(E=E_exact))
     print("relative error: ", abs((E - E_exact) / E_exact))
-    return E, psi, M
+    return E, psi, model
 
 
 if __name__ == "__main__":

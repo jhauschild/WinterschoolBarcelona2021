@@ -126,6 +126,20 @@ def init_FM_MPS(L, d, bc='finite'):
     return SimpleMPS(Bs, Ss, bc=bc)
 
 
+def init_Neel_MPS(L, d, bc='finite'):
+    """Return a ferromagnetic MPS (= product state with all spins up)"""
+    B = np.zeros([1, d, 1], dtype=float)
+    S = np.ones([1], dtype=float)
+    Bs = [B.copy() for i in range(L)]
+    for i in range(L):
+        if i % 2 == 0:
+            B[0, 0, 0] = 1.
+        else:
+            B[0, -1, 0] = 1.
+    Ss = [S.copy() for i in range(L)]
+    return SimpleMPS(Bs, Ss, bc=bc)
+
+
 def split_truncate_theta(theta, chi_max, eps):
     """Split and truncate a two-site wave function in mixed canonical form.
 
