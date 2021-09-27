@@ -7,6 +7,8 @@ from scipy.linalg import svd
 # uncomment the following line. (This requires TeNPy to be installed.)
 #  from tenpy.linalg.svd_robust import svd  # (works like scipy.linalg.svd)
 
+import warnings
+
 
 class SimpleMPS:
     """Simple class for a matrix product state.
@@ -100,6 +102,9 @@ class SimpleMPS:
     def correlation_length(self):
         """Diagonalize transfer matrix to obtain the correlation length."""
         import scipy.sparse.linalg.eigen.arpack as arp
+        if self.get_chi()[0] > 100:
+            warnings.warn("Skip calculating correlation_length() for large chi: could take long")
+            return -1.
         assert self.bc == 'infinite'  # works only in the infinite case
         B = self.Bs[0]  # vL i vR
         chi = B.shape[0]
@@ -113,7 +118,33 @@ class SimpleMPS:
         T = np.reshape(T, (chi**2, chi**2))
         # Obtain the 2nd largest eigenvalue
         eta = arp.eigs(T, k=2, which='LM', return_eigenvectors=False, ncv=20)
-        return -self.L / np.log(np.min(np.abs(eta)))
+        xi =  -self.L / np.log(np.min(np.abs(eta)))
+        if xi > 1000.:
+            return np.inf
+        return xi
+
+    def correlation_function(self, op_i, i, op_j, j):
+        """Correlation function between two distant operators on sites i < j.
+
+        Note: calling this function in a loop over `j` is inefficient for large j >> i.
+        The optimization is left as an exercise to the user.
+        Hint: Re-use the partial contractions up to but excluding site `j`.
+        """
+        assert i < j
+        theta = self.get_theta1(i) # vL i vR
+        C = np.tensordot(op_i, theta, axes=(1, 1)) # i [i*], vL [i] vR
+        C = np.tensordot(theta.conj(), C, axes=([0, 1], [1, 0]))  # [vL*] [i*] vR*, [i] [vL] vR
+        for k in range(i + 1, j):
+            k = k % self.L
+            B = self.Bs[k]  # vL k vR
+            C = np.tensordot(C, B, axes=(1, 0)) # vR* [vR], [vL] k vR
+            C = np.tensordot(B.conj(), C, axes=([0, 1], [0, 1])) # [vL*] [k*] vR*, [vR*] [k] vR
+        j = j % self.L
+        B = self.Bs[j]  # vL k vR
+        C = np.tensordot(C, B, axes=(1, 0)) # vR* [vR], [vL] j vR
+        C = np.tensordot(op_j, C, axes=(1, 1))  # j [j*], vR* [j] vR
+        C = np.tensordot(B.conj(), C, axes=([0, 1, 2], [1, 0, 2])) # [vL*] [j*] [vR*], [j] [vR*] [vR]
+        return C
 
 
 def init_FM_MPS(L, d, bc='finite'):
