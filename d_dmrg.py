@@ -7,45 +7,6 @@ import scipy.sparse
 from scipy.sparse.linalg.eigen import arpack
 
 
-class SimpleHeff2(scipy.sparse.linalg.LinearOperator):
-    """Class for the effective Hamiltonian.
-
-    To be diagonalized in `SimpleDMRGEnginge.update_bond`. Looks like this::
-
-        .--vL*           vR*--.
-        |       i*    j*      |
-        |       |     |       |
-       (LP)----(W1)--(W2)----(RP)
-        |       |     |       |
-        |       i     j       |
-        .--vL             vR--.
-    """
-    def __init__(self, LP, RP, W1, W2):
-        self.LP = LP  # vL wL* vL*
-        self.RP = RP  # vR* wR* vR
-        self.W1 = W1  # wL wC i i*
-        self.W2 = W2  # wC wR j j*
-        chi1, chi2 = LP.shape[0], RP.shape[2]
-        d1, d2 = W1.shape[2], W2.shape[2]
-        self.theta_shape = (chi1, d1, d2, chi2)  # vL i j vR
-        self.shape = (chi1 * d1 * d2 * chi2, chi1 * d1 * d2 * chi2)
-        self.dtype = W1.dtype
-
-    def _matvec(self, theta):
-        """Calculate the matrix-vecotr product |theta'> = H_eff |theta>.
-
-        This function is used by :func:scipy.sparse.linalg.eigen.arpack.eigsh` to diagonalize
-        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix.
-        """
-        x = np.reshape(theta, self.theta_shape)  # vL i j vR
-        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] i j vR
-        x = np.tensordot(x, self.W1, axes=([1, 2], [0, 3]))  # vL [wL*] [i] j vR, [wL] wC i [i*]
-        x = np.tensordot(x, self.W2, axes=([3, 1], [0, 3]))  # vL [j] vR [wC] i, [wC] wR j [j*]
-        x = np.tensordot(x, self.RP, axes=([1, 3], [0, 1]))  # vL [vR] i [wR] j, [vR*] [wR*] vR
-        x = np.reshape(x, self.shape[0])
-        return x
-
-
 class SimpleDMRGEngine:
     """DMRG algorithm, implemented as class holding the necessary data.
 
@@ -159,6 +120,45 @@ class SimpleDMRGEngine:
         LP = np.tensordot(W, LP, axes=([0, 3], [1, 2]))  # [wL] wR i [i*], vL [wL*] [i] vR
         LP = np.tensordot(Ac, LP, axes=([0, 1], [2, 1]))  # [vL*] [i*] vR*, wR [i] [vL] vR
         self.LPs[j] = LP  # vR* wR vR (== vL wL* vL* on site i+1)
+
+
+class SimpleHeff2(scipy.sparse.linalg.LinearOperator):
+    """Class for the effective Hamiltonian on two sites.
+
+    To be diagonalized in `SimpleDMRGEnginge.diag` during the bond update. Looks like this::
+
+        .--vL*           vR*--.
+        |       i*    j*      |
+        |       |     |       |
+       (LP)----(W1)--(W2)----(RP)
+        |       |     |       |
+        |       i     j       |
+        .--vL             vR--.
+    """
+    def __init__(self, LP, RP, W1, W2):
+        self.LP = LP  # vL wL* vL*
+        self.RP = RP  # vR* wR* vR
+        self.W1 = W1  # wL wC i i*
+        self.W2 = W2  # wC wR j j*
+        chi1, chi2 = LP.shape[0], RP.shape[2]
+        d1, d2 = W1.shape[2], W2.shape[2]
+        self.theta_shape = (chi1, d1, d2, chi2)  # vL i j vR
+        self.shape = (chi1 * d1 * d2 * chi2, chi1 * d1 * d2 * chi2)
+        self.dtype = W1.dtype
+
+    def _matvec(self, theta):
+        """Calculate the matrix-vecotr product |theta'> = H_eff |theta>.
+
+        This function is used by :func:scipy.sparse.linalg.eigen.arpack.eigsh` to diagonalize
+        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix.
+        """
+        x = np.reshape(theta, self.theta_shape)  # vL i j vR
+        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] i j vR
+        x = np.tensordot(x, self.W1, axes=([1, 2], [0, 3]))  # vL [wL*] [i] j vR, [wL] wC i [i*]
+        x = np.tensordot(x, self.W2, axes=([3, 1], [0, 3]))  # vL [j] vR [wC] i, [wC] wR j [j*]
+        x = np.tensordot(x, self.RP, axes=([1, 3], [0, 1]))  # vL [vR] i [wR] j, [vR*] [wR*] vR
+        x = np.reshape(x, self.shape[0])
+        return x
 
 
 def example_DMRG_tf_ising_finite(L, g, chi_max=20):

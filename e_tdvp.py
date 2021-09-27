@@ -12,72 +12,6 @@ from d_dmrg import SimpleHeff2
 import a_mps
 
 
-class SimpleHeff1(scipy.sparse.linalg.LinearOperator):
-    """Class for the effective Hamiltonian on 1 site.
-
-    Looks like this::
-
-        .--vL*     vR*--.
-        |       i*      |
-        |       |       |
-       (LP)----(W1)----(RP)
-        |       |       |
-        |       i       |
-        .--vL       vR--.
-    """
-    def __init__(self, LP, RP, W1, prefactor=1.):
-        self.LP = LP  # vL wL* vL*
-        self.RP = RP  # vR* wR* vR
-        self.W1 = W1  # wL wR i i*
-        chi1, chi2 = LP.shape[0], RP.shape[2]
-        d1 = W1.shape[2]
-        self.theta_shape = (chi1, d1, chi2)  # vL i vR
-        self.shape = (chi1 * d1 * chi2, chi1 * d1 * chi2)
-        self.dtype = W1.dtype
-
-    def _matvec(self, theta):
-        """Calculate |theta'> = H_eff |theta>."""
-        x = np.reshape(theta, self.theta_shape)  # vL i vR
-        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] i vR
-        x = np.tensordot(x, self.W1, axes=([1, 2], [0, 3]))  # vL [wL*] [i] vR, [wL] wR i [i*]
-        x = np.tensordot(x, self.RP, axes=([1, 2], [0, 1]))  # vL [vR] [wR] i, [vR*] [wR*] vR
-        x = np.reshape(x, self.shape[0])
-        return x
-
-
-class SimpleHeff0(scipy.sparse.linalg.LinearOperator):
-    """Class for the effective Hamiltonian.
-
-    Looks like this::
-
-        .--vL*   vR*--.
-        |             |
-        |             |
-       (LP)----------(RP)
-        |             |
-        |             |
-        .--vL     vR--.
-    """
-    def __init__(self, LP, RP, prefactor=1.):
-        self.LP = LP  # vL wL* vL*
-        self.RP = RP  # vR* wR* vR
-        chi1, chi2 = LP.shape[0], RP.shape[2]
-        self.theta_shape = (chi1, chi2)  # vL vR
-        self.shape = (chi1 * chi2, chi1 * chi2)
-        self.dtype = LP.dtype
-
-    def _matvec(self, theta):
-        """Calculate |theta'> = H_eff |theta>.
-
-        This function is used by :func:scipy.sparse.linalg.eigen.arpack.eigsh` to diagonalize
-        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix."""
-        x = np.reshape(theta, self.theta_shape)  # vL vR
-        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] vR
-        x = np.tensordot(x, self.RP, axes=([1, 2], [1, 0]))  # vL [wL*] [vL*] , [vR*] [wR*] vR
-        x = np.reshape(x, self.shape[0])
-        return x
-
-
 class SimpleTDVPEngine:
     """TDVP algorithm for finite systems, implemented as class holding the necessary data.
 
@@ -311,6 +245,72 @@ class SimpleTDVPEngine:
         #  from scipy.sparse.linalg import expm_multiply
         #  return expm_multiply((-1.j*dt) * H, psi0)
         return lanczos_expm_multiply(H, psi0, dt)
+
+class SimpleHeff1(scipy.sparse.linalg.LinearOperator):
+    """Class for the effective Hamiltonian on 1 site.
+
+    Basically the same as d_dmrg.SimpleHeff2, but acts on a single site::
+
+        .--vL*     vR*--.
+        |       i*      |
+        |       |       |
+       (LP)----(W1)----(RP)
+        |       |       |
+        |       i       |
+        .--vL       vR--.
+    """
+    def __init__(self, LP, RP, W1, prefactor=1.):
+        self.LP = LP  # vL wL* vL*
+        self.RP = RP  # vR* wR* vR
+        self.W1 = W1  # wL wR i i*
+        chi1, chi2 = LP.shape[0], RP.shape[2]
+        d1 = W1.shape[2]
+        self.theta_shape = (chi1, d1, chi2)  # vL i vR
+        self.shape = (chi1 * d1 * chi2, chi1 * d1 * chi2)
+        self.dtype = W1.dtype
+
+    def _matvec(self, theta):
+        """Calculate |theta'> = H_eff |theta>."""
+        x = np.reshape(theta, self.theta_shape)  # vL i vR
+        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] i vR
+        x = np.tensordot(x, self.W1, axes=([1, 2], [0, 3]))  # vL [wL*] [i] vR, [wL] wR i [i*]
+        x = np.tensordot(x, self.RP, axes=([1, 2], [0, 1]))  # vL [vR] [wR] i, [vR*] [wR*] vR
+        x = np.reshape(x, self.shape[0])
+        return x
+
+
+class SimpleHeff0(scipy.sparse.linalg.LinearOperator):
+    """Class for the effective Hamiltonian.
+
+    Basically the same as d_dmrg.SimpleHeff1, but acts on the zero-site wave function::
+
+        .--vL*   vR*--.
+        |             |
+        |             |
+       (LP)----------(RP)
+        |             |
+        |             |
+        .--vL     vR--.
+    """
+    def __init__(self, LP, RP, prefactor=1.):
+        self.LP = LP  # vL wL* vL*
+        self.RP = RP  # vR* wR* vR
+        chi1, chi2 = LP.shape[0], RP.shape[2]
+        self.theta_shape = (chi1, chi2)  # vL vR
+        self.shape = (chi1 * chi2, chi1 * chi2)
+        self.dtype = LP.dtype
+
+    def _matvec(self, theta):
+        """Calculate |theta'> = H_eff |theta>.
+
+        This function is used by :func:scipy.sparse.linalg.eigen.arpack.eigsh` to diagonalize
+        the effective Hamiltonian with a Lanczos method, withouth generating the full matrix."""
+        x = np.reshape(theta, self.theta_shape)  # vL vR
+        x = np.tensordot(self.LP, x, axes=(2, 0))  # vL wL* [vL*], [vL] vR
+        x = np.tensordot(x, self.RP, axes=([1, 2], [1, 0]))  # vL [wL*] [vL*] , [vR*] [wR*] vR
+        x = np.reshape(x, self.shape[0])
+        return x
+
 
 
 def example_TDVP_tf_ising_lightcone(L, g, tmax, dt, one_site=True, chi_max=50):
