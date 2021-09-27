@@ -312,22 +312,21 @@ class SimpleHeff0(scipy.sparse.linalg.LinearOperator):
         return x
 
 
-
 def example_TDVP_tf_ising_lightcone(L, g, tmax, dt, one_site=True, chi_max=50):
     # compare this code to c_tebd.example_TEBD_tf_ising_lightcone - it's almost the same.
     print("finite TEBD, real time evolution, transverse field Ising")
     print("L={L:d}, g={g:.2f}, tmax={tmax:.2f}, dt={dt:.3f}".format(L=L, g=g, tmax=tmax, dt=dt))
     # find ground state with TEBD or DMRG
-    #  E, psi, M = example_TEBD_gs_tf_ising_finite(L, g)
+    #  E, psi, model = example_TEBD_gs_tf_ising_finite(L, g)
     from d_dmrg import example_DMRG_tf_ising_finite
-    E, psi, M = example_DMRG_tf_ising_finite(L, g)
+    E, psi, model = example_DMRG_tf_ising_finite(L, g)
     i0 = L // 2
-    # apply sigmaz on site i0
-    SzB = np.tensordot(M.sigmaz, psi.Bs[i0], axes=(1, 1))  # i [i*], vL [i] vR
-    psi.Bs[i0] = np.transpose(SzB, [1, 0, 2])  # vL i vR
-    E = np.sum(psi.bond_expectation_value(M.H_bonds))
+    # apply sigmax on site i0
+    SxB = np.tensordot(model.sigmaz, psi.Bs[i0], axes=(1, 1))  # i [i*], vL [i] vR
+    psi.Bs[i0] = np.transpose(SxB, [1, 0, 2])  # vL i vR
+    E = np.sum(psi.bond_expectation_value(model.H_bonds))
     print("E after applying Sz = {E:.13f}".format(E=E))
-    eng = SimpleTDVPEngine(psi, M, chi_max=chi_max, eps=1.e-7)
+    eng = SimpleTDVPEngine(psi, model, chi_max=chi_max, eps=1.e-7)
     S = [psi.entanglement_entropy()]
     Nsteps = int(tmax / dt + 0.5)
     for n in range(Nsteps):
@@ -352,7 +351,7 @@ def example_TDVP_tf_ising_lightcone(L, g, tmax, dt, one_site=True, chi_max=50):
     filename = 'e_tdvp_lightcone_{g:.2f}_chi_{chi_max:d}.pdf'.format(g=g, chi_max=chi_max)
     plt.savefig(filename)
     print("saved " + filename)
-    E = np.sum(psi.bond_expectation_value(M.H_bonds))
+    E = np.sum(psi.bond_expectation_value(model.H_bonds))
     print("final E = {E:.13f}".format(E=E))
 
 

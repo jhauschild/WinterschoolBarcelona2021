@@ -108,9 +108,9 @@ def example_TEBD_tf_ising_lightcone(L, g, tmax, dt, chi_max=50):
     from d_dmrg import example_DMRG_tf_ising_finite
     E, psi, model = example_DMRG_tf_ising_finite(L, g)
     i0 = L // 2
-    # apply sigmaz on site i0
-    SzB = np.tensordot(model.sigmaz, psi.Bs[i0], axes=(1, 1))  # i [i*], vL [i] vR
-    psi.Bs[i0] = np.transpose(SzB, [1, 0, 2])  # vL i vR
+    # apply sigmax on site i0
+    SxB = np.tensordot(model.sigmax, psi.Bs[i0], axes=(1, 1))  # i [i*], vL [i] vR
+    psi.Bs[i0] = np.transpose(SxB, [1, 0, 2])  # vL i vR
     U_bonds = calc_U_bonds(model.H_bonds, 1.j * dt)  # (imaginary dt -> realtime evolution)
     S = [psi.entanglement_entropy()]
     Nsteps = int(tmax / dt + 0.5)
