@@ -52,9 +52,19 @@ def entanglement_entropy(psi, bond=None):
     return S
 
 
-def XX_model_comparison_entropies(L, h_staggered, time_list, bond=None,
-                                  boundary_conditions='open'):
-    r"""Provide half-chain entanglement entropies for comparison with the XX chain.
+def XX_model_ground_state_energy(L, h_staggered, boundary_conditions='open'):
+    """
+    """
+    H_hop = hopping_matrix(L, 2., 2.*h_staggered, boundary_conditions=boundary_conditions)
+    E = np.linalg.eigvalsh(H_hop)
+    E_shift = 0. if L % 2 == 0 else - h_staggered
+    # the shift stems from the 1/2 in mapping sigmaz = (n - 1/2) for the h_s terms
+    # which cancels out for even L due to the alternating sign of h_s
+    return np.sum(E[:L//2]) + E_shift
+
+def XX_model_time_evolved_entropies(L, h_staggered, time_list, bond=None,
+                                    boundary_conditions='open'):
+    r"""Half-chain entanglement entropies for time evolving Neel state with XX chain.
 
     The XX chain given by the hamiltonian (here, X,Y,Z = Pauli matrices)
 
