@@ -9,5 +9,5 @@ from setuptools import setup, find_packages
 setup(
     name='tenpy-toycodes',
     version='0.1.0',
-    packages=find_packages(include=['*.py'])
+    packages=find_packages(include=['toycodes'])
 )
