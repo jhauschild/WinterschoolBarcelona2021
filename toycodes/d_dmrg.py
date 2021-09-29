@@ -179,7 +179,7 @@ def example_DMRG_tf_ising_finite(L, g, chi_max=20):
     print("magnetization in X = {mag_x:.5f}".format(mag_x=mag_x))
     print("magnetization in Z = {mag_z:.5f}".format(mag_z=mag_z))
     if L < 20:  # compare to exact result
-        from tfi_exact import finite_gs_energy
+        from .tfi_exact import finite_gs_energy
         E_exact = finite_gs_energy(L, 1., g)
         print("Exact diagonalization: E = {E:.13f}".format(E=E_exact))
         print("relative error: ", abs((E - E_exact) / E_exact))
@@ -210,10 +210,3 @@ def example_DMRG_tf_ising_infinite(g, chi_max=30):
     print("Analytic result: E (per site) = {E:.13f}".format(E=E_exact))
     print("relative error: ", abs((E - E_exact) / E_exact))
     return E, psi, model
-
-
-if __name__ == "__main__":
-    # this code is not called if you import this module from another file
-    example_DMRG_tf_ising_finite(L=10, g=1.)
-    print("-" * 100)
-    example_DMRG_tf_ising_infinite(g=1.5)

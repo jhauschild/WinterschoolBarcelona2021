@@ -1,1 +1,1 @@
-# this file just makes the directory a Python package that can be imported
+# this file makes the directory a Python package that can be imported with `import toycodes`

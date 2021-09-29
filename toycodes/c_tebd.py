@@ -52,8 +52,8 @@ def update_bond(psi, i, U_bond, chi_max, eps):
 def example_TEBD_gs_tf_ising_finite(L, g, chi_max=30):
     print("finite TEBD, imaginary time evolution, transverse field Ising")
     print("L={L:d}, g={g:.2f}".format(L=L, g=g))
-    import a_mps
-    import b_model
+    from . import a_mps
+    from . import b_model
     model = b_model.TFIModel(L=L, J=1., g=g, bc='finite')
     psi = a_mps.init_FM_MPS(model.L, model.d, model.bc)
     for dt in [0.1, 0.01, 0.001, 1.e-4, 1.e-5]:
@@ -67,7 +67,7 @@ def example_TEBD_gs_tf_ising_finite(L, g, chi_max=30):
     print("magnetization in X = {mag_x:.5f}".format(mag_x=mag_x))
     print("magnetization in Z = {mag_z:.5f}".format(mag_z=mag_z))
     if L < 20:  # compare to exact result
-        from tfi_exact import finite_gs_energy
+        from .tfi_exact import finite_gs_energy
         E_exact = finite_gs_energy(L, 1., g)
         print("Exact diagonalization: E = {E:.13f}".format(E=E_exact))
         print("relative error: ", abs((E - E_exact) / E_exact))
@@ -77,8 +77,8 @@ def example_TEBD_gs_tf_ising_finite(L, g, chi_max=30):
 def example_TEBD_gs_tf_ising_infinite(g, chi_max=30):
     print("infinite TEBD, imaginary time evolution, transverse field Ising")
     print("g={g:.2f}".format(g=g))
-    import a_mps
-    import b_model
+    from . import a_mps
+    from . import b_model
     model = b_model.TFIModel(L=2, J=1., g=g, bc='infinite')
     psi = a_mps.init_FM_MPS(model.L, model.d, model.bc)
     for dt in [0.1, 0.01, 0.001, 1.e-4, 1.e-5]:
@@ -93,7 +93,7 @@ def example_TEBD_gs_tf_ising_infinite(g, chi_max=30):
     print("<sigma_z> = {mag_z:.5f}".format(mag_z=mag_z))
     print("correlation length:", psi.correlation_length())
     # compare to exact result
-    from tfi_exact import infinite_gs_energy
+    from .tfi_exact import infinite_gs_energy
     E_exact = infinite_gs_energy(1., g)
     print("Analytic result: E (per site) = {E:.13f}".format(E=E_exact))
     print("relative error: ", abs((E - E_exact) / E_exact))
@@ -133,12 +133,3 @@ def example_TEBD_tf_ising_lightcone(L, g, tmax, dt, chi_max=50):
     filename = 'c_tebd_lightcone_{g:.2f}_chi_{chi_max:d}.pdf'.format(g=g, chi_max=chi_max)
     plt.savefig(filename)
     print("saved " + filename)
-
-
-if __name__ == "__main__":
-    # this code is not called if you import this module from another file
-    example_TEBD_gs_tf_ising_finite(L=10, g=1.)
-    print("-" * 100)
-    example_TEBD_gs_tf_ising_infinite(g=1.5)
-    print("-" * 100)
-    example_TEBD_tf_ising_lightcone(L=20, g=1.5, tmax=3., dt=0.01)

@@ -6,7 +6,7 @@
 import numpy as np
 import scipy.sparse.linalg
 from scipy.sparse.linalg import expm
-from lanczos import lanczos_expm_multiply
+from .lanczos import lanczos_expm_multiply
 
 from .d_dmrg import SimpleHeff2
 from . import a_mps
@@ -348,9 +348,6 @@ def example_TDVP_tf_ising_lightcone(L, g, tmax, dt, one_site=True, chi_max=50):
     plt.ylabel('time $t/J$')
     plt.ylim(0., tmax)
     plt.colorbar().set_label('entropy $S$')
-    filename = 'e_tdvp_lightcone_{g:.2f}_chi_{chi_max:d}.pdf'.format(g=g, chi_max=chi_max)
-    plt.savefig(filename)
-    print("saved " + filename)
     E = np.sum(psi.bond_expectation_value(model.H_bonds))
     print("final E = {E:.13f}".format(E=E))
 
