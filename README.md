@@ -1,6 +1,6 @@
 # Tutorials for DMRG and TDVP
 
-This is a set of tutorials for the winter school of the European Tensor Network held in September 2021 in Barcelona.
+This is a set of tutorials for the [winter school of the European Tensor Network held in September 2021 in Barcelona](https://indico.icc.ub.edu/event/116/overview).
 
 The tutorials are split into two sessions.
 
@@ -9,8 +9,10 @@ All files for this are in the folder `toycodes`, and you need to look into them 
 
 In the second session, we will use the [TeNPy](https://github.com/tenpy/tenpy) library to setup more advanced calculations in the folder `tenpy`.
 
+## Lecture notes
+
 The `IntroDMRG.pdf` and `IntroTDVP.pdf` are the notes written down in the lecture itself.
-I've also added the prepared lecture notes with a slightly cleaner hand writing (and an extra page in the end of DMRG, that I skipped during the lecture).
+I've also added the prepared lecture notes with a slightly cleaner hand writing (and an extra page in the end of DMRG, that I skipped during the lecture due to time constraints).
 
 The references are:
 
