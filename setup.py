@@ -7,8 +7,6 @@
 
 from setuptools import setup
 
-setup(
-    name='tenpy-toycodes',
-    version='0.1.0',
-    packages=['toycodes'])
-)
+setup(name='tenpy-toycodes',
+      version='0.1.0',
+      packages=['toycodes'])
